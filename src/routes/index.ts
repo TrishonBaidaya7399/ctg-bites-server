@@ -7,6 +7,8 @@ import configRoutes from "./config.routes";
 import ordersRoutes from "./orders.routes";
 import couponsRoutes from "./coupons.routes";
 import reportsRoutes from "./reports.routes";
+import categoriesRoutes from "./categories.routes";
+import appetizersRoutes from "./appetizers.routes";
 
 const router = Router();
 
@@ -18,5 +20,7 @@ router.use("/config", configRoutes);
 router.use("/orders", ordersRoutes);
 router.use("/coupons", couponsRoutes);
 router.use("/reports", reportsRoutes);
+router.use("/categories", categoriesRoutes);
+router.use("/appetizers", appetizersRoutes);
 
 export default router;

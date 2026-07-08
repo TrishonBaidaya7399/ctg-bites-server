@@ -1,19 +1,21 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { MenuItem, MENU_CATEGORIES } from "@/models/MenuItem";
+import { MenuItem } from "@/models/MenuItem";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { AppError } from "@/utils/appError";
 
 const menuItemSchema = z.object({
   name: z.string().min(1),
-  category: z.enum(MENU_CATEGORIES),
+  category: z.string().min(1),
   price: z.number().positive(),
   badge: z.string().optional(),
   description: z.string().min(1),
+  ingredients: z.array(z.string()).optional(),
   image: z.string().min(1),
   imagePublicId: z.string().optional(),
   isVeg: z.boolean().optional(),
   isSpicy: z.boolean().optional(),
+  appetizers: z.array(z.string()).optional(),
 });
 
 const menuItemUpdateSchema = menuItemSchema.partial();
@@ -30,7 +32,7 @@ export const listMenuItems = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const getMenuItem = asyncHandler(async (req: Request, res: Response) => {
-  const item = await MenuItem.findById(req.params.id);
+  const item = await MenuItem.findById(req.params.id).populate("appetizers");
   if (!item) throw new AppError("Menu item not found", 404);
   res.json({ item });
 });
