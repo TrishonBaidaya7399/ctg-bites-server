@@ -3,15 +3,25 @@ import mongoose, { Schema, Document, Types } from "mongoose";
 export const REVIEW_STATUSES = ["pending", "approved", "hidden"] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
+export const REVIEW_SOURCES = ["order", "manual"] as const;
+export type ReviewSource = (typeof REVIEW_SOURCES)[number];
+
 // One review document = one dish rated within one order. A multi-item order
 // reviewed "all together" produces one document per item, all sharing the
 // same `groupId` and `comment` (per-item ratings, one shared comment — see
 // createReviewGroup). A "review separately" order also produces one document
 // per item, but each gets its own unique `groupId` and independent comment.
+//
+// source: "order" reviews are always tied to a real delivered Order (order/orderNumber
+// set). "manual" reviews are entered by staff on behalf of a customer who reviewed
+// elsewhere (e.g. Google/Facebook) — no order exists, so order/orderNumber are omitted
+// and sourceLabel names the origin (e.g. "Google Reviews").
 export interface IReview extends Document {
   groupId: string;
-  order: Types.ObjectId;
-  orderNumber: string;
+  source: ReviewSource;
+  sourceLabel?: string;
+  order?: Types.ObjectId;
+  orderNumber?: string;
   menuItem?: Types.ObjectId;
   itemName: string;
   itemImage: string;
@@ -29,8 +39,10 @@ export interface IReview extends Document {
 const ReviewSchema = new Schema<IReview>(
   {
     groupId: { type: String, required: true },
-    order: { type: Schema.Types.ObjectId, ref: "Order", required: true },
-    orderNumber: { type: String, required: true },
+    source: { type: String, enum: REVIEW_SOURCES, default: "order", index: true },
+    sourceLabel: { type: String, trim: true },
+    order: { type: Schema.Types.ObjectId, ref: "Order" },
+    orderNumber: { type: String },
     menuItem: { type: Schema.Types.ObjectId, ref: "MenuItem" },
     itemName: { type: String, required: true },
     itemImage: { type: String, required: true },

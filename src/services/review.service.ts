@@ -70,6 +70,7 @@ export async function createReviewGroup(input: CreateReviewGroupInput): Promise<
     }
     return {
       groupId: input.mode === "together" ? sharedGroupId : crypto.randomUUID(),
+      source: "order" as const,
       order: order._id,
       orderNumber: order.orderNumber,
       menuItem: orderItem.menuItem,
@@ -105,6 +106,54 @@ export async function createReviewGroup(input: CreateReviewGroupInput): Promise<
   }
 
   return created;
+}
+
+interface CreateManualReviewInput {
+  menuItemId?: string;
+  itemName: string;
+  itemImage: string;
+  customerName: string;
+  customerAvatar?: string;
+  rating: number;
+  comment?: string;
+  sourceLabel?: string;
+}
+
+// Lets staff hand-enter a review left elsewhere (Google, Facebook, in person) so it can
+// still show up in the on-site reviews carousel. No Order backs this, so none of the
+// order-eligibility checks apply — it's purely an admin-curated entry.
+export async function createManualReview(input: CreateManualReviewInput): Promise<IReview> {
+  if (input.rating < 1 || input.rating > 5) {
+    throw new AppError("Rating must be between 1 and 5.", 400);
+  }
+  if (!input.itemName.trim() || !input.itemImage.trim()) {
+    throw new AppError("Item name and image are required.", 400);
+  }
+  if (!input.customerName.trim()) {
+    throw new AppError("Customer name is required.", 400);
+  }
+
+  const review = await Review.create({
+    groupId: crypto.randomUUID(),
+    source: "manual",
+    sourceLabel: input.sourceLabel?.trim() || undefined,
+    menuItem: input.menuItemId,
+    itemName: input.itemName.trim(),
+    itemImage: input.itemImage.trim(),
+    customerName: input.customerName.trim(),
+    customerAvatar: input.customerAvatar,
+    rating: input.rating,
+    comment: input.comment?.trim() || undefined,
+    status: "approved",
+  });
+
+  if (review.menuItem) {
+    await recalcMenuItemRating(review.menuItem as mongoose.Types.ObjectId);
+  }
+
+  reviewEvents.emitReviewCreated(review);
+
+  return review;
 }
 
 export async function listApprovedReviews(menuItemId?: string): Promise<IReview[]> {

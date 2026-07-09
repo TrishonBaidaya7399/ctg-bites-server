@@ -30,6 +30,23 @@ export const createReview = asyncHandler(async (req: Request, res: Response) => 
   res.status(201).json({ reviews: created.map(serializeReview) });
 });
 
+const createManualReviewSchema = z.object({
+  menuItemId: z.string().optional(),
+  itemName: z.string().min(1),
+  itemImage: z.string().min(1),
+  customerName: z.string().min(1),
+  customerAvatar: z.string().url().optional(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().max(2000).optional(),
+  sourceLabel: z.string().max(60).optional(),
+});
+
+export const createManualReview = asyncHandler(async (req: Request, res: Response) => {
+  const body = createManualReviewSchema.parse(req.body);
+  const review = await reviewService.createManualReview(body);
+  res.status(201).json({ review: serializeReview(review) });
+});
+
 export const checkEligibility = asyncHandler(async (req: Request, res: Response) => {
   const result = await reviewService.isOrderReviewable(req.params.orderId);
   res.json(result);

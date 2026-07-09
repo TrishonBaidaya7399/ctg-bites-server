@@ -4,6 +4,8 @@ export function serializeReview(review: IReview) {
   return {
     id: String(review._id),
     groupId: review.groupId,
+    source: review.source,
+    sourceLabel: review.sourceLabel,
     orderNumber: review.orderNumber,
     menuItemId: review.menuItem ? String(review.menuItem) : undefined,
     itemName: review.itemName,

@@ -7,6 +7,7 @@ import { Recipe } from "@/models/Recipe";
 import { Coupon } from "@/models/Coupon";
 import { Category } from "@/models/Category";
 import { Appetizer } from "@/models/Appetizer";
+import { Review } from "@/models/Review";
 import mongoose from "mongoose";
 
 function slugify(value: string): string {
@@ -38,6 +39,74 @@ const RECIPE_SEED = [
   { title: "Authentic Kala Bhuna", slug: "kala-bhuna", time: "3 hrs", difficulty: "Hard", servings: 6, category: "Bhuna", image: "/images/recipes/kala-bhuna.png", excerpt: "The crown jewel of Chittagong cooking. Low heat, patience, and the right spices is all it takes.", ingredients: ["1kg beef (bone-in)", "4 tbsp mustard oil", "2 cups fried onion", "2 tbsp ginger paste", "1 tbsp garlic paste", "3 tsp red chili powder", "1 tsp cumin", "Whole spices (bay, cardamom, cinnamon)", "Salt to taste"], steps: ["Marinate beef with ginger, garlic, and all spices for 1 hour.", "Heat mustard oil in a heavy pot, fry onions golden.", "Add beef and cook on high heat for 10 minutes.", "Reduce to lowest heat, cover and cook 2–2.5 hrs stirring occasionally.", "Increase heat at the end until gravy turns dark and thick."] },
   { title: "Mezbani Dal", slug: "mezbani-dal", time: "40 min", difficulty: "Easy", servings: 8, category: "Mezzban", image: "/images/recipes/mezbani-dal.png", excerpt: "The soup that ties every Chittagong feast together. Thin, light, and loaded with warmth.", ingredients: ["300g masoor dal", "1 tsp turmeric", "3 dried red chilies", "2 tbsp mustard oil", "1 tsp panch phoron", "4 cloves garlic", "Salt"], steps: ["Boil dal with turmeric and salt until completely soft.", "Blend or whisk until smooth and thin.", "Heat mustard oil, fry garlic and dried chilies.", "Pour tadka over dal, stir well and serve."] },
   { title: "Shutki Bhorta", slug: "shutki-bhorta", time: "30 min", difficulty: "Medium", servings: 4, category: "Bhorta", image: "/images/recipes/shutki-bhorta.png", excerpt: "The most polarising dish in Bangladesh — and the most beloved in Chittagong. Bold, funky, unforgettable.", ingredients: ["150g dried fish (shutki)", "3 tbsp mustard oil", "4 green chilies", "1 medium onion (raw)", "1 tsp turmeric", "Salt", "Fresh coriander"], steps: ["Wash and soak shutki in hot water for 20 min.", "Fry in mustard oil with turmeric until crispy.", "Cool and flake finely.", "Mix with raw onion, green chili, mustard oil, and salt by hand.", "Garnish with coriander and serve with hot rice."] },
+];
+
+// Demo reviews so the homepage carousel has something to show out of the box. Seeded as
+// source: "manual" (no real order backs these) — exactly the same shape admin-added
+// social-media reviews take. Items sharing a groupId render as one "reviewed together" card.
+const REVIEW_SEED: {
+  groupId: string;
+  itemName: string;
+  itemImage: string;
+  customerName: string;
+  customerAvatar?: string;
+  rating: number;
+  comment?: string;
+  sourceLabel?: string;
+}[] = [
+  {
+    groupId: "seed-review-1",
+    itemName: "Kala Bhuna",
+    itemImage: "/images/menu/kala-bhuna.png",
+    customerName: "Sarah M.",
+    customerAvatar: "/images/avatars/avatar 1.jpg",
+    rating: 5,
+    comment: "The Kala Bhuna here ruined me for every other beef dish. That dark, smoky gravy — absolutely divine.",
+  },
+  {
+    groupId: "seed-review-2",
+    itemName: "CTG Style Shutki Bhorta",
+    itemImage: "/images/menu/shutki-bhorta.png",
+    customerName: "Priya K.",
+    rating: 5,
+    comment: "The Shutki Bhorta is a revelation. I've brought every visitor I've had to Chittagong here.",
+  },
+  {
+    groupId: "seed-review-3",
+    itemName: "Mezzban Beef Bhuna",
+    itemImage: "/images/menu/mezzban-bhuna.webp",
+    customerName: "James L.",
+    customerAvatar: "/images/avatars/avatar 1.jpg",
+    rating: 5,
+    comment: "Flew in for a conference, stumbled onto CTG Bites. Best meal of the trip, no contest.",
+    sourceLabel: "Google Reviews",
+  },
+  // "Reviewed together" example — two items sharing one groupId and one comment.
+  {
+    groupId: "seed-review-4",
+    itemName: "Borhani",
+    itemImage: "/images/menu/borhani.webp",
+    customerName: "Tomás R.",
+    rating: 4,
+    comment: "Perfect atmosphere, bold flavours. The Borhani alongside the Mezzban set is absolutely addictive.",
+  },
+  {
+    groupId: "seed-review-4",
+    itemName: "Mezbani Dal",
+    itemImage: "/images/menu/mezbani-dal.png",
+    customerName: "Tomás R.",
+    rating: 5,
+    comment: "Perfect atmosphere, bold flavours. The Borhani alongside the Mezzban set is absolutely addictive.",
+  },
+  {
+    groupId: "seed-review-5",
+    itemName: "Mishti Doi",
+    itemImage: "/images/menu/mishti-doi.png",
+    customerName: "Anika R.",
+    rating: 5,
+    comment: "Ended the meal with this and I'm still thinking about it a week later. Perfectly sweet, not sickly.",
+    sourceLabel: "Facebook",
+  },
 ];
 
 const COUPON_SEED = [
@@ -125,6 +194,44 @@ async function seed() {
     console.log(`[seed] Inserted ${COUPON_SEED.length} coupons.`);
   } else {
     console.log("[seed] Coupons already exist, skipping.");
+  }
+
+  const reviewCount = await Review.countDocuments();
+  if (reviewCount === 0) {
+    const menuItemsByName = new Map((await MenuItem.find()).map((m) => [m.name, m]));
+    await Review.insertMany(
+      REVIEW_SEED.map((r) => ({
+        groupId: r.groupId,
+        source: "manual" as const,
+        sourceLabel: r.sourceLabel,
+        menuItem: menuItemsByName.get(r.itemName)?._id,
+        itemName: r.itemName,
+        itemImage: r.itemImage,
+        customerName: r.customerName,
+        customerAvatar: r.customerAvatar,
+        rating: r.rating,
+        comment: r.comment,
+        status: "approved" as const,
+      }))
+    );
+    console.log(`[seed] Inserted ${REVIEW_SEED.length} demo reviews.`);
+
+    // Keep each reviewed MenuItem's aggregate rating/reviews count in sync, same as the
+    // live recalcMenuItemRating logic in review.service.ts.
+    for (const menuItem of menuItemsByName.values()) {
+      const stats = await Review.aggregate([
+        { $match: { menuItem: menuItem._id, status: "approved" } },
+        { $group: { _id: "$menuItem", avg: { $avg: "$rating" }, count: { $sum: 1 } } },
+      ]);
+      if (stats[0]) {
+        await MenuItem.updateOne(
+          { _id: menuItem._id },
+          { rating: Math.round(stats[0].avg * 10) / 10, reviews: stats[0].count }
+        );
+      }
+    }
+  } else {
+    console.log("[seed] Reviews already exist, skipping.");
   }
 
   await mongoose.disconnect();
