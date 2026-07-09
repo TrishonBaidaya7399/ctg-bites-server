@@ -8,6 +8,7 @@ import {
   revokeRefreshToken,
   rotateRefreshToken,
   signAccessToken,
+  verifyGoogleIdToken,
 } from "@/services/auth.service";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { AppError } from "@/utils/appError";
@@ -26,8 +27,8 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-function toPublicUser(user: { _id: unknown; name: string; email: string; role: string }) {
-  return { id: String(user._id), name: user.name, email: user.email, role: user.role };
+function toPublicUser(user: { _id: unknown; name: string; email: string; role: string; avatarUrl?: string }) {
+  return { id: String(user._id), name: user.name, email: user.email, role: user.role, avatarUrl: user.avatarUrl };
 }
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
@@ -68,6 +69,55 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const valid = await bcrypt.compare(body.password, user.passwordHash);
   if (!valid) {
     throw new AppError("Invalid email or password.", 401);
+  }
+
+  user.lastLoginAt = new Date();
+  await user.save();
+
+  const accessToken = signAccessToken(String(user._id), user.role);
+  const refreshToken = await issueRefreshToken(user._id);
+
+  res.json({ accessToken, refreshToken, user: toPublicUser(user) });
+});
+
+export const google = asyncHandler(async (req: Request, res: Response) => {
+  const { idToken } = z.object({ idToken: z.string().min(1) }).parse(req.body);
+
+  let profile;
+  try {
+    profile = await verifyGoogleIdToken(idToken);
+  } catch (err) {
+    throw new AppError(err instanceof Error ? err.message : "Invalid Google token.", 401);
+  }
+
+  let user = await User.findOne({ googleId: profile.googleId });
+
+  if (!user) {
+    // Link to an existing email/password account instead of creating a duplicate.
+    user = await User.findOne({ email: profile.email.toLowerCase() });
+    if (user) {
+      user.googleId = profile.googleId;
+      if (profile.avatarUrl) user.avatarUrl = profile.avatarUrl;
+      await user.save();
+    }
+  }
+
+  if (!user) {
+    user = await User.create({
+      name: profile.name,
+      email: profile.email.toLowerCase(),
+      role: "customer",
+      googleId: profile.googleId,
+      avatarUrl: profile.avatarUrl,
+    });
+
+    sendWelcomeEmail(user.email, user.name).catch((err) =>
+      console.error("[email] welcome email failed:", err)
+    );
+  }
+
+  if (!user.isActive) {
+    throw new AppError("This account has been deactivated.", 403);
   }
 
   user.lastLoginAt = new Date();

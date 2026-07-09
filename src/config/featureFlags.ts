@@ -18,4 +18,7 @@ export const featureFlags = {
       env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET
     ),
   },
+  googleAuth: {
+    enabled: Boolean(env.GOOGLE_CLIENT_ID),
+  },
 } as const;

@@ -1,9 +1,45 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
 import { env } from "@/config/env";
 import { RefreshToken } from "@/models/RefreshToken";
 import type { Role } from "@/models/User";
 import type { Types } from "mongoose";
+
+const googleClient = env.GOOGLE_CLIENT_ID ? new OAuth2Client(env.GOOGLE_CLIENT_ID) : null;
+
+export interface GoogleProfile {
+  googleId: string;
+  email: string;
+  name: string;
+  avatarUrl?: string;
+}
+
+// Verifies a Google Identity Services ID token (signature, audience, expiry) and
+// extracts the profile fields we need to find-or-create a User. Throws if Google
+// Sign-In isn't configured (no GOOGLE_CLIENT_ID) or the token is invalid.
+export async function verifyGoogleIdToken(idToken: string): Promise<GoogleProfile> {
+  if (!googleClient || !env.GOOGLE_CLIENT_ID) {
+    throw new Error("Google Sign-In is not configured on this server.");
+  }
+
+  const ticket = await googleClient.verifyIdToken({
+    idToken,
+    audience: env.GOOGLE_CLIENT_ID,
+  });
+
+  const payload = ticket.getPayload();
+  if (!payload?.sub || !payload.email) {
+    throw new Error("Invalid Google token payload.");
+  }
+
+  return {
+    googleId: payload.sub,
+    email: payload.email,
+    name: payload.name ?? payload.email.split("@")[0],
+    avatarUrl: payload.picture,
+  };
+}
 
 interface AccessTokenPayload {
   sub: string;

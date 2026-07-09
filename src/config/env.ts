@@ -39,6 +39,8 @@ const envSchema = z.object({
   DEFAULT_OWNER_PASSWORD: z.string().optional(),
   DEFAULT_OWNER_NAME: z.string().optional(),
 
+  GOOGLE_CLIENT_ID: z.string().optional(),
+
   TURNSTILE_SECRET_KEY: z.string().optional(),
   CONTACT_NOTIFY_EMAIL: z.string().optional(),
 });

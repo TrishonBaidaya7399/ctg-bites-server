@@ -4,6 +4,7 @@ import { welcomeEmail } from "@/emails/templates/welcome";
 import { orderConfirmationEmail } from "@/emails/templates/orderConfirmation";
 import { orderStatusUpdateEmail } from "@/emails/templates/orderStatusUpdate";
 import { passwordResetEmail } from "@/emails/templates/passwordReset";
+import { reviewThankYouEmail, type ReviewedItem } from "@/emails/templates/reviewThankYou";
 import type { IOrder, OrderStatus } from "@/models/Order";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
@@ -36,5 +37,10 @@ export async function sendOrderStatusUpdateEmail(
 
 export async function sendPasswordResetEmail(to: string, name: string, resetUrl: string): Promise<void> {
   const { subject, html } = passwordResetEmail(name, resetUrl);
+  await send(to, subject, html);
+}
+
+export async function sendReviewThankYouEmail(to: string, name: string, items: ReviewedItem[]): Promise<void> {
+  const { subject, html } = reviewThankYouEmail(name, items);
   await send(to, subject, html);
 }

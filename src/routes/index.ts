@@ -11,6 +11,7 @@ import categoriesRoutes from "./categories.routes";
 import appetizersRoutes from "./appetizers.routes";
 import uploadsRoutes from "./uploads.routes";
 import rolesRoutes from "./roles.routes";
+import reviewsRoutes from "./reviews.routes";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use("/categories", categoriesRoutes);
 router.use("/appetizers", appetizersRoutes);
 router.use("/uploads", uploadsRoutes);
 router.use("/roles", rolesRoutes);
+router.use("/reviews", reviewsRoutes);
 
 export default router;

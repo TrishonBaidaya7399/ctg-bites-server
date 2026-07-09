@@ -63,6 +63,7 @@ export interface IOrder extends Document {
   cancelledBy?: Types.ObjectId;
   cancelReason?: string;
   payment: IOrderPayment;
+  reviewedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -125,6 +126,7 @@ const OrderSchema = new Schema<IOrder>(
     cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
     cancelReason: { type: String },
     payment: { type: OrderPaymentSchema, required: true },
+    reviewedAt: { type: Date },
   },
   { timestamps: true }
 );
