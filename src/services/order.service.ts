@@ -67,6 +67,14 @@ export async function createOrder(input: CreateOrderInput): Promise<IOrder> {
     throw new AppError("Order must contain at least one item.", 400);
   }
 
+  const invalidId = input.items.find((i) => !mongoose.isValidObjectId(i.menuItemId));
+  if (invalidId) {
+    throw new AppError(
+      `Item "${invalidId.menuItemId}" is no longer available — please remove it from your cart and try again.`,
+      400
+    );
+  }
+
   const menuItems = await MenuItem.find({ _id: { $in: input.items.map((i) => i.menuItemId) } });
   const menuItemMap = new Map(menuItems.map((m) => [String(m._id), m]));
 

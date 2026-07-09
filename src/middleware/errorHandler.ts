@@ -21,6 +21,11 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
     return;
   }
 
+  if (err && typeof err === "object" && "name" in err && err.name === "CastError") {
+    res.status(400).json({ error: "Invalid ID format." });
+    return;
+  }
+
   console.error("[error]", err);
   res.status(500).json({ error: "Internal server error" });
 }
