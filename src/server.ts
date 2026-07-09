@@ -4,9 +4,11 @@ import { env } from "@/config/env";
 import { connectDB } from "@/config/db";
 import { createApp } from "@/app";
 import { initSockets } from "@/sockets";
+import { ensureDefaultsSeeded } from "@/services/permissions.service";
 
 async function main() {
   await connectDB();
+  await ensureDefaultsSeeded();
 
   const app = createApp();
   const server = http.createServer(app);

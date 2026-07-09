@@ -1,19 +1,19 @@
 import { Router } from "express";
 import * as menuController from "@/controllers/menu.controller";
-import { requireAuth, requireRole } from "@/middleware/auth.middleware";
+import { requireAuth, requirePermission } from "@/middleware/auth.middleware";
 
 const router = Router();
 
 router.get("/", menuController.listMenuItems);
 router.get("/:id", menuController.getMenuItem);
-router.post("/", requireAuth, requireRole("owner", "manager"), menuController.createMenuItem);
-router.patch("/:id", requireAuth, requireRole("owner", "manager"), menuController.updateMenuItem);
+router.post("/", requireAuth, requirePermission("menu:write"), menuController.createMenuItem);
+router.patch("/:id", requireAuth, requirePermission("menu:write"), menuController.updateMenuItem);
 router.patch(
   "/:id/availability",
   requireAuth,
-  requireRole("owner", "manager", "staff"),
+  requirePermission("menu:availability"),
   menuController.updateAvailability
 );
-router.delete("/:id", requireAuth, requireRole("owner", "manager"), menuController.deleteMenuItem);
+router.delete("/:id", requireAuth, requirePermission("menu:write"), menuController.deleteMenuItem);
 
 export default router;

@@ -10,6 +10,7 @@ import reportsRoutes from "./reports.routes";
 import categoriesRoutes from "./categories.routes";
 import appetizersRoutes from "./appetizers.routes";
 import uploadsRoutes from "./uploads.routes";
+import rolesRoutes from "./roles.routes";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/reports", reportsRoutes);
 router.use("/categories", categoriesRoutes);
 router.use("/appetizers", appetizersRoutes);
 router.use("/uploads", uploadsRoutes);
+router.use("/roles", rolesRoutes);
 
 export default router;

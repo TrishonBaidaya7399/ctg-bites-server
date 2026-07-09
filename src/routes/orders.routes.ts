@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as ordersController from "@/controllers/orders.controller";
-import { optionalAuth, requireAuth, requireRole } from "@/middleware/auth.middleware";
+import { optionalAuth, requireAuth, requireRole, requirePermission, requireRoleOrPermission } from "@/middleware/auth.middleware";
 import { orderCreateLimiter, orderTrackLimiter } from "@/middleware/rateLimiter";
 
 const router = Router();
@@ -8,21 +8,16 @@ const router = Router();
 router.post("/", orderCreateLimiter, optionalAuth, ordersController.createOrder);
 router.get("/track/:orderNumber", orderTrackLimiter, ordersController.trackOrder);
 router.get("/mine", requireAuth, requireRole("customer"), ordersController.myOrders);
-router.get("/", requireAuth, requireRole("owner", "manager", "staff", "rider"), ordersController.listOrders);
+router.get("/", requireAuth, requirePermission("orders:view"), ordersController.listOrders);
 router.get("/:id", requireAuth, ordersController.getOrder);
-router.patch("/:id/accept", requireAuth, requireRole("owner", "manager", "staff"), ordersController.accept);
-router.patch(
-  "/:id/status",
-  requireAuth,
-  requireRole("owner", "manager", "staff", "rider"),
-  ordersController.updateStatus
-);
+router.patch("/:id/accept", requireAuth, requirePermission("orders:accept"), ordersController.accept);
+router.patch("/:id/status", requireAuth, requirePermission("orders:status"), ordersController.updateStatus);
 router.patch(
   "/:id/cancel",
   requireAuth,
-  requireRole("owner", "manager", "staff", "customer"),
+  requireRoleOrPermission(["customer"], "orders:cancel"),
   ordersController.cancel
 );
-router.patch("/:id/assign-rider", requireAuth, requireRole("owner", "manager"), ordersController.assignRider);
+router.patch("/:id/assign-rider", requireAuth, requirePermission("orders:assign-rider"), ordersController.assignRider);
 
 export default router;

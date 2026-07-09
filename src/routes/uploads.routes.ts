@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as uploadsController from "@/controllers/uploads.controller";
-import { requireAuth, requireRole } from "@/middleware/auth.middleware";
+import { requireAuth, requirePermission } from "@/middleware/auth.middleware";
 import { uploadImage } from "@/middleware/upload.middleware";
 
 const router = Router();
@@ -8,7 +8,7 @@ const router = Router();
 router.post(
   "/image",
   requireAuth,
-  requireRole("owner", "manager"),
+  requirePermission("uploads:write"),
   uploadImage,
   uploadsController.uploadImageHandler
 );
