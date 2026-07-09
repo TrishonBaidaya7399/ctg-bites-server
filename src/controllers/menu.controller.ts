@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MenuItem } from "@/models/MenuItem";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { AppError } from "@/utils/appError";
+import { deleteImage } from "@/services/upload.service";
 
 const menuItemSchema = z.object({
   name: z.string().min(1),
@@ -45,8 +46,16 @@ export const createMenuItem = asyncHandler(async (req: Request, res: Response) =
 
 export const updateMenuItem = asyncHandler(async (req: Request, res: Response) => {
   const body = menuItemUpdateSchema.parse(req.body);
+
+  const previous = body.imagePublicId ? await MenuItem.findById(req.params.id) : null;
+
   const item = await MenuItem.findByIdAndUpdate(req.params.id, body, { new: true });
   if (!item) throw new AppError("Menu item not found", 404);
+
+  if (previous?.imagePublicId && previous.imagePublicId !== body.imagePublicId) {
+    void deleteImage(previous.imagePublicId);
+  }
+
   res.json({ item });
 });
 
@@ -60,5 +69,6 @@ export const updateAvailability = asyncHandler(async (req: Request, res: Respons
 export const deleteMenuItem = asyncHandler(async (req: Request, res: Response) => {
   const item = await MenuItem.findByIdAndDelete(req.params.id);
   if (!item) throw new AppError("Menu item not found", 404);
+  if (item.imagePublicId) void deleteImage(item.imagePublicId);
   res.status(204).send();
 });

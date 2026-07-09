@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Appetizer } from "@/models/Appetizer";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { AppError } from "@/utils/appError";
+import { deleteImage } from "@/services/upload.service";
 
 const appetizerSchema = z.object({
   name: z.string().min(1),
@@ -40,8 +41,16 @@ export const createAppetizer = asyncHandler(async (req: Request, res: Response) 
 
 export const updateAppetizer = asyncHandler(async (req: Request, res: Response) => {
   const body = appetizerUpdateSchema.parse(req.body);
+
+  const previous = body.imagePublicId ? await Appetizer.findById(req.params.id) : null;
+
   const appetizer = await Appetizer.findByIdAndUpdate(req.params.id, body, { new: true });
   if (!appetizer) throw new AppError("Appetizer not found", 404);
+
+  if (previous?.imagePublicId && previous.imagePublicId !== body.imagePublicId) {
+    void deleteImage(previous.imagePublicId);
+  }
+
   res.json({ appetizer });
 });
 
@@ -55,5 +64,6 @@ export const updateAvailability = asyncHandler(async (req: Request, res: Respons
 export const deleteAppetizer = asyncHandler(async (req: Request, res: Response) => {
   const appetizer = await Appetizer.findByIdAndDelete(req.params.id);
   if (!appetizer) throw new AppError("Appetizer not found", 404);
+  if (appetizer.imagePublicId) void deleteImage(appetizer.imagePublicId);
   res.status(204).send();
 });

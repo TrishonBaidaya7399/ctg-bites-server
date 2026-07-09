@@ -28,3 +28,12 @@ export async function compressAndUploadImage(buffer: Buffer, folder: string): Pr
     stream.end(compressed);
   });
 }
+
+export async function deleteImage(publicId: string): Promise<void> {
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+  } catch {
+    // Best-effort cleanup — a failed delete here must never block the caller's
+    // own request (e.g. saving the new image on a menu item).
+  }
+}
