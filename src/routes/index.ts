@@ -12,6 +12,7 @@ import appetizersRoutes from "./appetizers.routes";
 import uploadsRoutes from "./uploads.routes";
 import rolesRoutes from "./roles.routes";
 import reviewsRoutes from "./reviews.routes";
+import newsletterRoutes from "./newsletter.routes";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/appetizers", appetizersRoutes);
 router.use("/uploads", uploadsRoutes);
 router.use("/roles", rolesRoutes);
 router.use("/reviews", reviewsRoutes);
+router.use("/newsletter", newsletterRoutes);
 
 export default router;

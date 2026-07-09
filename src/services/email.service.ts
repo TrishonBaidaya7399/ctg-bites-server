@@ -5,7 +5,10 @@ import { orderConfirmationEmail } from "@/emails/templates/orderConfirmation";
 import { orderStatusUpdateEmail } from "@/emails/templates/orderStatusUpdate";
 import { passwordResetEmail } from "@/emails/templates/passwordReset";
 import { reviewThankYouEmail, type ReviewedItem } from "@/emails/templates/reviewThankYou";
+import { recipeDripEmail } from "@/emails/templates/recipeDrip";
+import { newsletterManualEmail } from "@/emails/templates/newsletterManual";
 import type { IOrder, OrderStatus } from "@/models/Order";
+import type { IRecipe } from "@/models/Recipe";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
   if (!resend) {
@@ -43,4 +46,19 @@ export async function sendPasswordResetEmail(to: string, name: string, resetUrl:
 export async function sendReviewThankYouEmail(to: string, name: string, items: ReviewedItem[]): Promise<void> {
   const { subject, html } = reviewThankYouEmail(name, items);
   await send(to, subject, html);
+}
+
+export async function sendRecipeDripEmail(to: string, recipe: IRecipe, unsubscribeUrl: string): Promise<void> {
+  const { subject, html } = recipeDripEmail(recipe, unsubscribeUrl);
+  await send(to, subject, html);
+}
+
+export async function sendNewsletterManualEmail(
+  to: string,
+  subject: string,
+  bodyHtml: string,
+  unsubscribeUrl: string
+): Promise<void> {
+  const rendered = newsletterManualEmail(subject, bodyHtml, unsubscribeUrl);
+  await send(to, rendered.subject, rendered.html);
 }

@@ -12,12 +12,21 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+export interface IOrderItemAppetizer {
+  appetizer?: Types.ObjectId;
+  name: string;
+  price: number;
+  quantity: number;
+  image: string;
+}
+
 export interface IOrderItem {
   menuItem?: Types.ObjectId;
   name: string;
   price: number;
   quantity: number;
   image: string;
+  appetizers?: IOrderItemAppetizer[];
 }
 
 export interface IOrderPayment {
@@ -68,6 +77,17 @@ export interface IOrder extends Document {
   updatedAt: Date;
 }
 
+const OrderItemAppetizerSchema = new Schema<IOrderItemAppetizer>(
+  {
+    appetizer: { type: Schema.Types.ObjectId, ref: "Appetizer" },
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    image: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const OrderItemSchema = new Schema<IOrderItem>(
   {
     menuItem: { type: Schema.Types.ObjectId, ref: "MenuItem" },
@@ -75,6 +95,7 @@ const OrderItemSchema = new Schema<IOrderItem>(
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
     image: { type: String, required: true },
+    appetizers: [OrderItemAppetizerSchema],
   },
   { _id: false }
 );

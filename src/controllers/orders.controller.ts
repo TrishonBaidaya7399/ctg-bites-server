@@ -15,7 +15,17 @@ const createOrderSchema = z.object({
   customerEmail: z.string().email().optional(),
   customerPhone: z.string().optional(),
   customerAddress: z.string().optional(),
-  items: z.array(z.object({ menuItemId: z.string().min(1), quantity: z.number().int().positive() })).min(1),
+  items: z
+    .array(
+      z.object({
+        menuItemId: z.string().min(1),
+        quantity: z.number().int().positive(),
+        appetizers: z
+          .array(z.object({ appetizerId: z.string().min(1), quantity: z.number().int().positive() }))
+          .optional(),
+      })
+    )
+    .min(1),
   note: z.string().optional(),
   couponCode: z.string().optional(),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),

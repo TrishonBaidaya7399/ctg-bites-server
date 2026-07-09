@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
-import { Order, type IOrder, type OrderStatus } from "@/models/Order";
+import { Order, type IOrder, type IOrderItemAppetizer, type OrderStatus } from "@/models/Order";
 import { MenuItem } from "@/models/MenuItem";
+import { Appetizer } from "@/models/Appetizer";
 import { Coupon } from "@/models/Coupon";
 import { generateOrderNumber } from "@/utils/generateOrderNumber";
 import { AppError } from "@/utils/appError";
@@ -33,7 +34,11 @@ interface CreateOrderInput {
   customerEmail?: string;
   customerPhone?: string;
   customerAddress?: string;
-  items: { menuItemId: string; quantity: number }[];
+  items: {
+    menuItemId: string;
+    quantity: number;
+    appetizers?: { appetizerId: string; quantity: number }[];
+  }[];
   note?: string;
   couponCode?: string;
   paymentMethod?: "cod" | "bkash" | "stripe";
@@ -75,23 +80,55 @@ export async function createOrder(input: CreateOrderInput): Promise<IOrder> {
     );
   }
 
+  const allAppetizerIds = input.items.flatMap((i) => (i.appetizers ?? []).map((a) => a.appetizerId));
+  const invalidAppetizerId = allAppetizerIds.find((id) => !mongoose.isValidObjectId(id));
+  if (invalidAppetizerId) {
+    throw new AppError(
+      `Appetizer "${invalidAppetizerId}" is no longer available — please remove it from your cart and try again.`,
+      400
+    );
+  }
+
   const menuItems = await MenuItem.find({ _id: { $in: input.items.map((i) => i.menuItemId) } });
   const menuItemMap = new Map(menuItems.map((m) => [String(m._id), m]));
+
+  const appetizers = allAppetizerIds.length
+    ? await Appetizer.find({ _id: { $in: allAppetizerIds } })
+    : [];
+  const appetizerMap = new Map(appetizers.map((a) => [String(a._id), a]));
 
   const orderItems = input.items.map((item) => {
     const menuItem = menuItemMap.get(item.menuItemId);
     if (!menuItem) throw new AppError(`Menu item ${item.menuItemId} not found.`, 400);
     if (!menuItem.available) throw new AppError(`${menuItem.name} is currently unavailable.`, 400);
+
+    const itemAppetizers: IOrderItemAppetizer[] = (item.appetizers ?? []).map((a) => {
+      const appetizer = appetizerMap.get(a.appetizerId);
+      if (!appetizer) throw new AppError(`Appetizer ${a.appetizerId} not found.`, 400);
+      if (!appetizer.available) throw new AppError(`${appetizer.name} is currently unavailable.`, 400);
+      return {
+        appetizer: appetizer._id,
+        name: appetizer.name,
+        price: appetizer.price,
+        quantity: a.quantity,
+        image: appetizer.image,
+      };
+    });
+
     return {
       menuItem: menuItem._id,
       name: menuItem.name,
       price: menuItem.price,
       quantity: item.quantity,
       image: menuItem.image,
+      appetizers: itemAppetizers,
     };
   });
 
-  const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = orderItems.reduce((sum, item) => {
+    const appetizersTotal = item.appetizers.reduce((s, a) => s + a.price * a.quantity, 0);
+    return sum + item.price * item.quantity + appetizersTotal;
+  }, 0);
 
   let discountAmount = 0;
   let couponCode: string | undefined;

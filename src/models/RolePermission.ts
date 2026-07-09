@@ -24,6 +24,7 @@ export const PERMISSION_KEYS = [
   "users:manage",
   "users:delete",
   "reviews:moderate",
+  "newsletter:manage",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -55,6 +56,7 @@ export const DEFAULT_PERMISSIONS: Record<(typeof EDITABLE_ROLES)[number], Permis
     "reports:sales",
     "users:manage",
     "reviews:moderate",
+    "newsletter:manage",
   ],
   staff: [
     "menu:availability",

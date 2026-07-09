@@ -16,6 +16,13 @@ export function serializeOrder(order: IOrder) {
       price: item.price,
       quantity: item.quantity,
       image: item.image,
+      appetizers: (item.appetizers ?? []).map((a) => ({
+        appetizerId: a.appetizer ? String(a.appetizer) : "",
+        name: a.name,
+        price: a.price,
+        quantity: a.quantity,
+        image: a.image,
+      })),
     })),
     note: order.note,
     total: order.total,

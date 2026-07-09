@@ -20,6 +20,8 @@ const envSchema = z.object({
   EMAIL_ORDER_STATUS_UPDATES: z.coerce.boolean().default(false),
   EMAIL_ON_ADD_TO_CART: z.coerce.boolean().default(false),
 
+  PUBLIC_SITE_URL: z.string().default("http://localhost:3000"),
+
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),

@@ -5,6 +5,7 @@ import { connectDB } from "@/config/db";
 import { createApp } from "@/app";
 import { initSockets } from "@/sockets";
 import { ensureDefaultsSeeded } from "@/services/permissions.service";
+import { scheduleNewsletterDrip } from "@/jobs/newsletterDrip";
 
 async function main() {
   await connectDB();
@@ -21,6 +22,7 @@ async function main() {
   });
 
   initSockets(io);
+  scheduleNewsletterDrip();
 
   server.listen(env.PORT, () => {
     console.log(`[server] CTG Bites API listening on port ${env.PORT} (${env.NODE_ENV})`);
