@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { Order, ORDER_MODES, ORDER_TYPES, ORDER_STATUSES, PAYMENT_METHODS } from "@/models/Order";
+import { User } from "@/models/User";
 import * as orderService from "@/services/order.service";
 import { findOrderByIdOrNumber } from "@/services/order.service";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { AppError } from "@/utils/appError";
 import { serializeOrder } from "@/utils/serializeOrder";
+import { roleHasPermission } from "@/services/permissions.service";
 
 const createOrderSchema = z.object({
   mode: z.enum(ORDER_MODES),
@@ -33,8 +35,29 @@ const createOrderSchema = z.object({
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   const body = createOrderSchema.parse(req.body);
+
+  // Dine-in guests walk up to a table with no account — table orders stay guest-friendly.
+  // Delivery/parcel orders have no staff member to vouch for the customer in person, so
+  // an account is required to place one.
+  if (body.mode === "online" && req.user?.role !== "customer") {
+    throw new AppError("Please sign in to place an online order.", 401);
+  }
+
+  let customerName = body.customerName;
+  let customerEmail = body.customerEmail;
+  if (req.user?.role === "customer") {
+    const account = await User.findById(req.user.id);
+    if (!account) throw new AppError("Account not found.", 404);
+    // The order's customer identity always comes from the authenticated account, never
+    // client input — this is also what the admin panel displays for online orders.
+    customerName = account.name;
+    customerEmail = account.email;
+  }
+
   const order = await orderService.createOrder({
     ...body,
+    customerName,
+    customerEmail,
     customer: req.user?.role === "customer" ? req.user.id : undefined,
   });
   res.status(201).json({ order: serializeOrder(order) });
@@ -93,16 +116,50 @@ export const updateStatus = asyncHandler(async (req: Request, res: Response) => 
 export const cancel = asyncHandler(async (req: Request, res: Response) => {
   const { reason } = z.object({ reason: z.string().optional() }).parse(req.body ?? {});
 
-  if (req.user!.role === "customer") {
+  // Table/online guests never hold a session (no login flow exists for them), so most
+  // cancel requests arrive with no req.user at all — that's the normal customer path,
+  // not a privilege gap. An authenticated staff member still needs the orders:cancel
+  // permission even to cancel a merely-pending order — falling through to the
+  // guest/customer branch below would silently skip that check.
+  const isStaff = !!req.user && req.user.role !== "customer";
+
+  if (isStaff) {
+    const allowed = await roleHasPermission(req.user!.role, "orders:cancel");
+    if (!allowed) throw new AppError("Insufficient permissions", 403);
+    // Staff with the permission may cancel at any still-cancellable stage — enforced by
+    // the service's status-transition check, not repeated here.
+  } else {
     const order = await findOrderByIdOrNumber(req.params.id);
     if (!order) throw new AppError("Order not found", 404);
     if (order.status !== "pending") {
-      throw new AppError("You can only cancel an order before it's accepted.", 400);
+      throw new AppError("This order has already been accepted by the kitchen and can no longer be cancelled.", 400);
     }
   }
 
-  const order = await orderService.cancelOrder(req.params.id, req.user!.id, reason);
+  const order = await orderService.cancelOrder(req.params.id, req.user?.id, reason);
   res.json({ order: serializeOrder(order) });
+});
+
+// GET /api/orders/lookup?ids=ORD1,ORD2 — public batch fetch by order number, capped and
+// rate-limited since it's unauthenticated. Powers the guest "My Orders" page.
+export const lookupOrders = asyncHandler(async (req: Request, res: Response) => {
+  const { ids } = z.object({ ids: z.string().min(1) }).parse(req.query);
+  const orderNumbers = Array.from(
+    new Set(
+      ids
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 50);
+
+  if (orderNumbers.length === 0) {
+    res.json({ orders: [] });
+    return;
+  }
+
+  const orders = await Order.find({ orderNumber: { $in: orderNumbers } }).sort({ createdAt: -1 });
+  res.json({ orders: orders.map(serializeOrder) });
 });
 
 export const assignRider = asyncHandler(async (req: Request, res: Response) => {

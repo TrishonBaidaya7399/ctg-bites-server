@@ -28,6 +28,9 @@ export function serializeOrder(order: IOrder) {
     total: order.total,
     estimatedMinutes: order.estimatedMinutes,
     acceptedAt: order.acceptedAt?.toISOString(),
+    cancelledAt: order.cancelledAt?.toISOString(),
+    cancelReason: order.cancelReason,
+    reviewedAt: order.reviewedAt?.toISOString(),
     createdAt: order.createdAt.toISOString(),
   };
 }

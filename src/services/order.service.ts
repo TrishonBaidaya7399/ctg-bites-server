@@ -229,7 +229,7 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus): P
 
 export async function cancelOrder(
   orderId: string,
-  cancelledBy: string,
+  cancelledBy: string | undefined,
   reason?: string
 ): Promise<IOrder> {
   const order = await findOrderByIdOrNumber(orderId);
@@ -241,11 +241,14 @@ export async function cancelOrder(
 
   order.status = "cancelled";
   order.cancelledAt = new Date();
-  order.cancelledBy = cancelledBy as unknown as IOrder["cancelledBy"];
+  // Anonymous guest cancellations have no user id to attribute this to — leave it unset.
+  if (cancelledBy) {
+    order.cancelledBy = cancelledBy as unknown as IOrder["cancelledBy"];
+  }
   order.cancelReason = reason;
   await order.save();
 
-  orderEvents.emitOrderCancelled(order, cancelledBy);
+  orderEvents.emitOrderCancelled(order, cancelledBy ?? "guest");
   return order;
 }
 
