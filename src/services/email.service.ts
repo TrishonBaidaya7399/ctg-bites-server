@@ -6,13 +6,12 @@ import { env } from "@/config/env";
 import { welcomeEmail } from "@/emails/templates/welcome";
 import { otpVerificationEmail } from "@/emails/templates/otpVerification";
 import { orderConfirmationEmail } from "@/emails/templates/orderConfirmation";
-import { orderStatusUpdateEmail } from "@/emails/templates/orderStatusUpdate";
 import { orderCompletedEmail } from "@/emails/templates/orderCompleted";
 import { passwordResetEmail } from "@/emails/templates/passwordReset";
 import { reviewThankYouEmail, type ReviewedItem } from "@/emails/templates/reviewThankYou";
 import { recipeDripEmail } from "@/emails/templates/recipeDrip";
 import { newsletterManualEmail } from "@/emails/templates/newsletterManual";
-import type { IOrder, OrderStatus } from "@/models/Order";
+import type { IOrder } from "@/models/Order";
 import type { IRecipe } from "@/models/Recipe";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
@@ -57,16 +56,6 @@ export async function sendOrderConfirmationEmail(to: string, order: IOrder): Pro
 
 export async function sendOrderCompletedEmail(to: string, order: IOrder): Promise<void> {
   const { subject, html } = orderCompletedEmail(order);
-  await send(to, subject, html);
-}
-
-export async function sendOrderStatusUpdateEmail(
-  to: string,
-  orderNumber: string,
-  status: OrderStatus
-): Promise<void> {
-  if (!env.EMAIL_ORDER_STATUS_UPDATES) return;
-  const { subject, html } = orderStatusUpdateEmail(orderNumber, status);
   await send(to, subject, html);
 }
 

@@ -1,11 +1,18 @@
 import type { IOrder } from "@/models/Order";
 
-export function serializeOrder(order: IOrder) {
+export interface QueueInfo {
+  position: number;
+  total: number;
+}
+
+export function serializeOrder(order: IOrder, queue?: QueueInfo) {
   return {
     id: order.orderNumber,
     mode: order.mode,
     type: order.type,
     status: order.status,
+    queuePosition: queue?.position,
+    queueTotal: queue?.total,
     tableNumber: order.tableNumber,
     customerName: order.customerName,
     customerPhone: order.customerPhone,

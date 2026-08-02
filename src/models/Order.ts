@@ -12,6 +12,10 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+// Statuses that still occupy a spot in the kitchen queue — once an order leaves this
+// set (ready/delivered/cancelled) it's done competing for prep time.
+export const QUEUE_STATUSES: OrderStatus[] = ["pending", "accepted", "preparing"];
+
 export interface IOrderItemAppetizer {
   appetizer?: Types.ObjectId;
   name: string;

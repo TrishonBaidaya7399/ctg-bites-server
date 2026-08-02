@@ -17,7 +17,6 @@ const envSchema = z.object({
 
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default("CTG Bites <onboarding@resend.dev>"),
-  EMAIL_ORDER_STATUS_UPDATES: z.coerce.boolean().default(false),
   EMAIL_ON_ADD_TO_CART: z.coerce.boolean().default(false),
 
   // Brevo (HTTP API, not SMTP) — the primary sender. Reaches any recipient today with

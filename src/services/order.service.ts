@@ -1,15 +1,12 @@
 import mongoose from "mongoose";
-import { Order, type IOrder, type IOrderItemAppetizer, type OrderStatus } from "@/models/Order";
+import { Order, QUEUE_STATUSES, type IOrder, type IOrderItemAppetizer, type OrderStatus } from "@/models/Order";
 import { MenuItem } from "@/models/MenuItem";
 import { Appetizer } from "@/models/Appetizer";
 import { Coupon } from "@/models/Coupon";
 import { generateOrderNumber } from "@/utils/generateOrderNumber";
 import { AppError } from "@/utils/appError";
-import {
-  sendOrderConfirmationEmail,
-  sendOrderStatusUpdateEmail,
-  sendOrderCompletedEmail,
-} from "@/services/email.service";
+import type { QueueInfo } from "@/utils/serializeOrder";
+import { sendOrderConfirmationEmail, sendOrderCompletedEmail } from "@/services/email.service";
 import * as orderEvents from "@/sockets/orderEvents";
 
 export async function findOrderByIdOrNumber(idOrNumber: string): Promise<IOrder | null> {
@@ -18,6 +15,28 @@ export async function findOrderByIdOrNumber(idOrNumber: string): Promise<IOrder 
     if (byId) return byId;
   }
   return Order.findOne({ orderNumber: idOrNumber });
+}
+
+// FIFO by _id (Mongo's ObjectId embeds a creation timestamp, so ascending _id order is
+// equivalent to ascending createdAt without needing a separate sort key or tie-break).
+export async function getActiveQueueOrder(): Promise<{ _id: unknown }[]> {
+  return Order.find({ status: { $in: QUEUE_STATUSES } }).sort({ _id: 1 }).select("_id").lean();
+}
+
+export function buildQueueMap(activeQueue: { _id: unknown }[]): Map<string, QueueInfo> {
+  const total = activeQueue.length;
+  const map = new Map<string, QueueInfo>();
+  activeQueue.forEach((o, i) => map.set(String(o._id), { position: i + 1, total }));
+  return map;
+}
+
+// Single-order convenience wrapper for endpoints that only need one order's position
+// (still fetches the whole active queue — cheap at single-restaurant scale — rather
+// than a bespoke count query, so it can't disagree with the bulk path above).
+export async function getQueueInfoForOrder(order: IOrder): Promise<QueueInfo | undefined> {
+  if (!QUEUE_STATUSES.includes(order.status as OrderStatus)) return undefined;
+  const map = buildQueueMap(await getActiveQueueOrder());
+  return map.get(String(order._id));
 }
 
 const NEXT_STATUS: Record<OrderStatus, OrderStatus[]> = {
@@ -221,20 +240,13 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus): P
   order.status = status;
   await order.save();
 
-  if (order.customerEmail) {
-    // Parcel/delivery completions get a dedicated "delivered" template regardless of the
-    // EMAIL_ORDER_STATUS_UPDATES flag — same treatment as order confirmation, since it's
-    // the customer's closing receipt, not a routine kitchen-progress ping. Dine-in orders
-    // have staff closing the table in person, so they stay on the generic (flag-gated) path.
-    if (status === "delivered" && order.mode === "online") {
-      sendOrderCompletedEmail(order.customerEmail, order).catch((err) =>
-        console.error("[email] order completed failed:", err)
-      );
-    } else {
-      sendOrderStatusUpdateEmail(order.customerEmail, order.orderNumber, status).catch((err) =>
-        console.error("[email] status update failed:", err)
-      );
-    }
+  // Only online (parcel/delivery) orders get a status email, and only on "delivered" —
+  // that's the customer's closing receipt. No email for any other status transition,
+  // and none at all for dine-in: staff close those tables out in person.
+  if (order.customerEmail && status === "delivered" && order.mode === "online") {
+    sendOrderCompletedEmail(order.customerEmail, order).catch((err) =>
+      console.error("[email] order completed failed:", err)
+    );
   }
 
   orderEvents.emitOrderStatusChanged(order);
