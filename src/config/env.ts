@@ -20,9 +20,15 @@ const envSchema = z.object({
   EMAIL_ORDER_STATUS_UPDATES: z.coerce.boolean().default(false),
   EMAIL_ON_ADD_TO_CART: z.coerce.boolean().default(false),
 
-  // Gmail SMTP — a stopgap sender for reaching real customer inboxes before a domain is
-  // verified with Resend (Resend's sandbox sender can only email the account's own
-  // address). Takes priority over Resend when both are configured.
+  // Brevo (HTTP API, not SMTP) — the primary sender. Reaches any recipient today with
+  // only a single verified sender address (no domain/DNS needed), and works on hosts
+  // like Render that block outbound SMTP ports entirely.
+  BREVO_API_KEY: z.string().optional(),
+  BREVO_SENDER_EMAIL: z.string().optional(),
+  BREVO_SENDER_NAME: z.string().default("CTG Bites"),
+
+  // Gmail SMTP — only reachable from hosts that allow outbound SMTP (works locally,
+  // blocked on Render's free tier). Kept as a secondary path behind Brevo.
   GMAIL_USER: z.string().optional(),
   GMAIL_APP_PASSWORD: z.string().optional(),
 

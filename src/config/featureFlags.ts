@@ -11,7 +11,14 @@ export const featureFlags = {
     enabled: Boolean(env.STRIPE_SECRET_KEY),
   },
   email: {
-    enabled: Boolean(env.RESEND_API_KEY || (env.GMAIL_USER && env.GMAIL_APP_PASSWORD)),
+    enabled: Boolean(
+      (env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL) ||
+        (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) ||
+        env.RESEND_API_KEY
+    ),
+  },
+  brevo: {
+    enabled: Boolean(env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL),
   },
   gmailSmtp: {
     enabled: Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD),

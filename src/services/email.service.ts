@@ -1,5 +1,7 @@
 import { resend } from "@/config/resend";
 import { gmailTransporter } from "@/config/gmail";
+import { sendBrevoEmail } from "@/config/brevo";
+import { featureFlags } from "@/config/featureFlags";
 import { env } from "@/config/env";
 import { welcomeEmail } from "@/emails/templates/welcome";
 import { otpVerificationEmail } from "@/emails/templates/otpVerification";
@@ -14,8 +16,14 @@ import type { IOrder, OrderStatus } from "@/models/Order";
 import type { IRecipe } from "@/models/Recipe";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
-  // Gmail SMTP takes priority: it can reach any recipient today, whereas Resend's
-  // sandbox sender (no verified domain yet) can only email the account's own address.
+  // Brevo (HTTPS API) takes priority — it's the only path that reliably works on hosts
+  // like Render that block outbound SMTP. Gmail SMTP only works where SMTP egress is
+  // allowed (e.g. local dev); Resend's sandbox sender only reaches its own account
+  // address until a domain is verified. Each is a real fallback, not dead code.
+  if (featureFlags.brevo.enabled) {
+    await sendBrevoEmail({ to, subject, html });
+    return;
+  }
   if (gmailTransporter) {
     await gmailTransporter.sendMail({ from: `"CTG Bites" <${env.GMAIL_USER}>`, to, subject, html });
     return;
