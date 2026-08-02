@@ -5,7 +5,11 @@ import { Appetizer } from "@/models/Appetizer";
 import { Coupon } from "@/models/Coupon";
 import { generateOrderNumber } from "@/utils/generateOrderNumber";
 import { AppError } from "@/utils/appError";
-import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from "@/services/email.service";
+import {
+  sendOrderConfirmationEmail,
+  sendOrderStatusUpdateEmail,
+  sendOrderCompletedEmail,
+} from "@/services/email.service";
 import * as orderEvents from "@/sockets/orderEvents";
 
 export async function findOrderByIdOrNumber(idOrNumber: string): Promise<IOrder | null> {
@@ -218,9 +222,19 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus): P
   await order.save();
 
   if (order.customerEmail) {
-    sendOrderStatusUpdateEmail(order.customerEmail, order.orderNumber, status).catch((err) =>
-      console.error("[email] status update failed:", err)
-    );
+    // Parcel/delivery completions get a dedicated "delivered" template regardless of the
+    // EMAIL_ORDER_STATUS_UPDATES flag — same treatment as order confirmation, since it's
+    // the customer's closing receipt, not a routine kitchen-progress ping. Dine-in orders
+    // have staff closing the table in person, so they stay on the generic (flag-gated) path.
+    if (status === "delivered" && order.mode === "online") {
+      sendOrderCompletedEmail(order.customerEmail, order).catch((err) =>
+        console.error("[email] order completed failed:", err)
+      );
+    } else {
+      sendOrderStatusUpdateEmail(order.customerEmail, order.orderNumber, status).catch((err) =>
+        console.error("[email] status update failed:", err)
+      );
+    }
   }
 
   orderEvents.emitOrderStatusChanged(order);

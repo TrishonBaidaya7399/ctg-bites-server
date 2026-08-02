@@ -14,6 +14,14 @@ export interface IUser extends Document {
   lastLoginAt?: Date;
   googleId?: string;
   avatarUrl?: string;
+  // Explicitly `false` only for password accounts still mid-registration — accounts
+  // created before this field existed have it `undefined`, which callers must treat
+  // as verified (grandfathered in) rather than blocking their login.
+  emailVerified?: boolean;
+  otpCodeHash?: string;
+  otpExpiresAt?: Date;
+  otpAttempts?: number;
+  otpLastSentAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +43,11 @@ const UserSchema = new Schema<IUser>(
     lastLoginAt: { type: Date },
     googleId: { type: String, unique: true, sparse: true, index: true },
     avatarUrl: { type: String },
+    emailVerified: { type: Boolean },
+    otpCodeHash: { type: String, select: false },
+    otpExpiresAt: { type: Date, select: false },
+    otpAttempts: { type: Number, select: false },
+    otpLastSentAt: { type: Date, select: false },
   },
   { timestamps: true }
 );

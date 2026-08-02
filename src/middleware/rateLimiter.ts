@@ -20,3 +20,10 @@ export const orderTrackLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const otpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});

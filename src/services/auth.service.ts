@@ -111,3 +111,17 @@ export async function revokeRefreshToken(rawToken: string): Promise<void> {
   const tokenHash = hashToken(rawToken);
   await RefreshToken.updateOne({ tokenHash }, { $set: { revokedAt: new Date() } });
 }
+
+export const OTP_EXPIRES_MINUTES = 10;
+export const OTP_RESEND_COOLDOWN_SECONDS = 60;
+export const OTP_MAX_ATTEMPTS = 5;
+
+export function generateOtp(): string {
+  return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+}
+
+// OTPs are single-use, short-lived (10 min), and attempt/rate-limited, so a fast
+// keyed hash is sufficient here — no need for bcrypt's deliberate slowness.
+export function hashOtp(otp: string): string {
+  return crypto.createHmac("sha256", env.JWT_ACCESS_SECRET).update(otp).digest("hex");
+}

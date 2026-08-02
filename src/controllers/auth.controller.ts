@@ -9,10 +9,15 @@ import {
   rotateRefreshToken,
   signAccessToken,
   verifyGoogleIdToken,
+  generateOtp,
+  hashOtp,
+  OTP_EXPIRES_MINUTES,
+  OTP_RESEND_COOLDOWN_SECONDS,
+  OTP_MAX_ATTEMPTS,
 } from "@/services/auth.service";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { AppError } from "@/utils/appError";
-import { sendPasswordResetEmail, sendWelcomeEmail } from "@/services/email.service";
+import { sendPasswordResetEmail, sendWelcomeEmail, sendOtpVerificationEmail } from "@/services/email.service";
 import { env } from "@/config/env";
 
 const registerSchema = z.object({
@@ -27,6 +32,25 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const verifyOtpSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().length(6),
+});
+
+const resendOtpSchema = z.object({
+  email: z.string().email(),
+});
+
+async function issueOtp(user: InstanceType<typeof User>): Promise<string> {
+  const otp = generateOtp();
+  user.otpCodeHash = hashOtp(otp);
+  user.otpExpiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+  user.otpAttempts = 0;
+  user.otpLastSentAt = new Date();
+  await user.save();
+  return otp;
+}
+
 function toPublicUser(user: { _id: unknown; name: string; email: string; role: string; avatarUrl?: string }) {
   return { id: String(user._id), name: user.name, email: user.email, role: user.role, avatarUrl: user.avatarUrl };
 }
@@ -35,18 +59,69 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const body = registerSchema.parse(req.body);
 
   const existing = await User.findOne({ email: body.email.toLowerCase() });
-  if (existing) {
+  if (existing && existing.emailVerified !== false) {
     throw new AppError("An account with this email already exists.", 409);
   }
 
+  // An unverified account from an abandoned signup isn't a conflict — resume it with
+  // the freshly submitted details and send a new code, rather than dead-ending the user.
   const passwordHash = await bcrypt.hash(body.password, 12);
-  const user = await User.create({
-    name: body.name,
-    email: body.email.toLowerCase(),
-    passwordHash,
-    phone: body.phone,
-    role: "customer",
-  });
+  const user =
+    existing ??
+    (await User.create({
+      name: body.name,
+      email: body.email.toLowerCase(),
+      passwordHash,
+      phone: body.phone,
+      role: "customer",
+      emailVerified: false,
+    }));
+
+  if (existing) {
+    user.name = body.name;
+    user.passwordHash = passwordHash;
+    user.phone = body.phone;
+  }
+
+  const otp = await issueOtp(user);
+  sendOtpVerificationEmail(user.email, user.name, otp, OTP_EXPIRES_MINUTES).catch((err) =>
+    console.error("[email] otp verification email failed:", err)
+  );
+
+  // No tokens yet — the account only becomes usable once /verify-otp confirms the code.
+  res.status(201).json({ requiresVerification: true, email: user.email });
+});
+
+export const verifyOtp = asyncHandler(async (req: Request, res: Response) => {
+  const body = verifyOtpSchema.parse(req.body);
+
+  const user = await User.findOne({ email: body.email.toLowerCase() }).select(
+    "+otpCodeHash +otpExpiresAt +otpAttempts"
+  );
+  if (!user || !user.otpCodeHash || !user.otpExpiresAt) {
+    throw new AppError("Invalid or expired code. Please request a new one.", 400);
+  }
+  if (user.emailVerified) {
+    throw new AppError("This account is already verified.", 400);
+  }
+  if (user.otpExpiresAt < new Date()) {
+    throw new AppError("This code has expired. Please request a new one.", 400);
+  }
+  if ((user.otpAttempts ?? 0) >= OTP_MAX_ATTEMPTS) {
+    throw new AppError("Too many incorrect attempts. Please request a new code.", 429);
+  }
+
+  if (hashOtp(body.otp) !== user.otpCodeHash) {
+    user.otpAttempts = (user.otpAttempts ?? 0) + 1;
+    await user.save();
+    throw new AppError("Incorrect code. Please try again.", 400);
+  }
+
+  user.emailVerified = true;
+  user.otpCodeHash = undefined;
+  user.otpExpiresAt = undefined;
+  user.otpAttempts = undefined;
+  await user.save();
 
   const accessToken = signAccessToken(String(user._id), user.role);
   const refreshToken = await issueRefreshToken(user._id);
@@ -55,7 +130,26 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     console.error("[email] welcome email failed:", err)
   );
 
-  res.status(201).json({ accessToken, refreshToken, user: toPublicUser(user) });
+  res.json({ accessToken, refreshToken, user: toPublicUser(user) });
+});
+
+export const resendOtp = asyncHandler(async (req: Request, res: Response) => {
+  const body = resendOtpSchema.parse(req.body);
+
+  const user = await User.findOne({ email: body.email.toLowerCase() }).select("+otpLastSentAt");
+  // Same generic response whether or not the account exists / is already verified —
+  // this endpoint is unauthenticated and shouldn't leak which emails have accounts.
+  if (user && user.emailVerified !== true) {
+    const cooldownMs = OTP_RESEND_COOLDOWN_SECONDS * 1000;
+    if (!user.otpLastSentAt || Date.now() - user.otpLastSentAt.getTime() >= cooldownMs) {
+      const otp = await issueOtp(user);
+      sendOtpVerificationEmail(user.email, user.name, otp, OTP_EXPIRES_MINUTES).catch((err) =>
+        console.error("[email] otp verification email failed:", err)
+      );
+    }
+  }
+
+  res.json({ message: "If that account needs verification, a new code has been sent." });
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
@@ -69,6 +163,16 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const valid = await bcrypt.compare(body.password, user.passwordHash);
   if (!valid) {
     throw new AppError("Invalid email or password.", 401);
+  }
+
+  // Strict `=== false` — accounts created before this field existed have it
+  // `undefined` and must keep working without ever having seen an OTP screen.
+  if (user.emailVerified === false) {
+    throw new AppError(
+      "Please verify your email before signing in. We can resend the code if you need it.",
+      403,
+      { code: "EMAIL_NOT_VERIFIED", email: user.email }
+    );
   }
 
   user.lastLoginAt = new Date();
@@ -109,6 +213,7 @@ export const google = asyncHandler(async (req: Request, res: Response) => {
       role: "customer",
       googleId: profile.googleId,
       avatarUrl: profile.avatarUrl,
+      emailVerified: true,
     });
 
     sendWelcomeEmail(user.email, user.name).catch((err) =>

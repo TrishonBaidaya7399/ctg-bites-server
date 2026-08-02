@@ -1,8 +1,10 @@
 import { resend } from "@/config/resend";
 import { env } from "@/config/env";
 import { welcomeEmail } from "@/emails/templates/welcome";
+import { otpVerificationEmail } from "@/emails/templates/otpVerification";
 import { orderConfirmationEmail } from "@/emails/templates/orderConfirmation";
 import { orderStatusUpdateEmail } from "@/emails/templates/orderStatusUpdate";
+import { orderCompletedEmail } from "@/emails/templates/orderCompleted";
 import { passwordResetEmail } from "@/emails/templates/passwordReset";
 import { reviewThankYouEmail, type ReviewedItem } from "@/emails/templates/reviewThankYou";
 import { recipeDripEmail } from "@/emails/templates/recipeDrip";
@@ -23,8 +25,23 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<void> 
   await send(to, subject, html);
 }
 
+export async function sendOtpVerificationEmail(
+  to: string,
+  name: string,
+  otp: string,
+  expiresInMinutes: number
+): Promise<void> {
+  const { subject, html } = otpVerificationEmail(name, otp, expiresInMinutes);
+  await send(to, subject, html);
+}
+
 export async function sendOrderConfirmationEmail(to: string, order: IOrder): Promise<void> {
   const { subject, html } = orderConfirmationEmail(order);
+  await send(to, subject, html);
+}
+
+export async function sendOrderCompletedEmail(to: string, order: IOrder): Promise<void> {
+  const { subject, html } = orderCompletedEmail(order);
   await send(to, subject, html);
 }
 
