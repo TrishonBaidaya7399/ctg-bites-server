@@ -1,4 +1,5 @@
 import { resend } from "@/config/resend";
+import { gmailTransporter } from "@/config/gmail";
 import { env } from "@/config/env";
 import { welcomeEmail } from "@/emails/templates/welcome";
 import { otpVerificationEmail } from "@/emails/templates/otpVerification";
@@ -13,11 +14,17 @@ import type { IOrder, OrderStatus } from "@/models/Order";
 import type { IRecipe } from "@/models/Recipe";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
-  if (!resend) {
-    console.log(`[email] Resend not configured, skipping send to ${to}: ${subject}`);
+  // Gmail SMTP takes priority: it can reach any recipient today, whereas Resend's
+  // sandbox sender (no verified domain yet) can only email the account's own address.
+  if (gmailTransporter) {
+    await gmailTransporter.sendMail({ from: `"CTG Bites" <${env.GMAIL_USER}>`, to, subject, html });
     return;
   }
-  await resend.emails.send({ from: env.EMAIL_FROM, to, subject, html });
+  if (resend) {
+    await resend.emails.send({ from: env.EMAIL_FROM, to, subject, html });
+    return;
+  }
+  console.log(`[email] No email provider configured, skipping send to ${to}: ${subject}`);
 }
 
 export async function sendWelcomeEmail(to: string, name: string): Promise<void> {

@@ -11,7 +11,10 @@ export const featureFlags = {
     enabled: Boolean(env.STRIPE_SECRET_KEY),
   },
   email: {
-    enabled: Boolean(env.RESEND_API_KEY),
+    enabled: Boolean(env.RESEND_API_KEY || (env.GMAIL_USER && env.GMAIL_APP_PASSWORD)),
+  },
+  gmailSmtp: {
+    enabled: Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD),
   },
   cloudinary: {
     enabled: Boolean(
