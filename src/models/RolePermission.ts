@@ -27,6 +27,10 @@ export const PERMISSION_KEYS = [
   "newsletter:manage",
 ] as const;
 
+// Finance is intentionally NOT a permission key — it's gated by requireRole("owner")
+// directly in finance.routes.ts so it can never be delegated via the Permissions page,
+// even by mistake. Every other capability in this app is grantable; this one isn't.
+
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
 
 // Roles whose permissions are editable via the Permissions page. "owner" is

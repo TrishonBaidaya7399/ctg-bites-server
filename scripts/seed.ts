@@ -8,6 +8,9 @@ import { Coupon } from "@/models/Coupon";
 import { Category } from "@/models/Category";
 import { Appetizer } from "@/models/Appetizer";
 import { Review } from "@/models/Review";
+import { Order, type OrderMode, type PaymentMethod } from "@/models/Order";
+import { Expense, type ExpenseCategory } from "@/models/Expense";
+import { generateOrderNumber } from "@/utils/generateOrderNumber";
 import mongoose from "mongoose";
 
 function slugify(value: string): string {
@@ -117,6 +120,111 @@ const COUPON_SEED = [
   { code: "NEWUSER25", discountPercent: 25 },
 ];
 
+// Spread across the last 30 days so the Finance page's chart/table have something to
+// show out of the box, same spirit as REVIEW_SEED above.
+const EXPENSE_SEED: { category: ExpenseCategory; description: string; amount: number; vendor?: string; daysAgo: number }[] = [
+  { category: "ingredients", description: "Weekly vegetable & meat supply", amount: 18500, vendor: "Reazuddin Bazar Wholesale", daysAgo: 2 },
+  { category: "ingredients", description: "Rice & lentils bulk order", amount: 9200, vendor: "Khatunganj Traders", daysAgo: 5 },
+  { category: "ingredients", description: "Dried fish (shutki) restock", amount: 4300, vendor: "Fishery Ghat Supplier", daysAgo: 9 },
+  { category: "ingredients", description: "Spices & mustard oil restock", amount: 6100, vendor: "Khatunganj Traders", daysAgo: 16 },
+  { category: "salaries", description: "Kitchen staff salaries — biweekly", amount: 42000, daysAgo: 14 },
+  { category: "salaries", description: "Waitstaff salaries — biweekly", amount: 28000, daysAgo: 14 },
+  { category: "salaries", description: "Rider payouts — biweekly", amount: 15000, daysAgo: 28 },
+  { category: "rent", description: "Shop rent — monthly", amount: 55000, vendor: "GEC Circle Property", daysAgo: 28 },
+  { category: "utilities", description: "Electricity bill", amount: 12400, vendor: "PDB", daysAgo: 20 },
+  { category: "utilities", description: "Gas cylinder refills", amount: 6800, daysAgo: 11 },
+  { category: "utilities", description: "Water bill", amount: 2100, vendor: "WASA", daysAgo: 20 },
+  { category: "equipment", description: "New gas burner + repairs", amount: 15500, vendor: "Agrabad Hardware", daysAgo: 17 },
+  { category: "equipment", description: "Cookware replacement", amount: 7200, daysAgo: 24 },
+  { category: "marketing", description: "Facebook ads boost", amount: 5000, daysAgo: 6 },
+  { category: "marketing", description: "Local newspaper ad", amount: 3500, vendor: "Purbokone", daysAgo: 26 },
+  { category: "other", description: "Staff meal allowance", amount: 4600, daysAgo: 3 },
+  { category: "other", description: "Delivery bike fuel & maintenance", amount: 5300, daysAgo: 8 },
+];
+
+// Sales that didn't come through the site (phone orders, walk-ins) — logged as
+// source: "manual", same as an owner would add via the Finance page.
+const MANUAL_ORDER_SEED: {
+  customerName: string;
+  description: string;
+  amount: number;
+  mode: OrderMode;
+  paymentMethod: PaymentMethod;
+  daysAgo: number;
+}[] = [
+  { customerName: "Walk-in Guest", description: "Mezzban feast for 4 (phone order)", amount: 1280, mode: "table", paymentMethod: "cod", daysAgo: 1 },
+  { customerName: "Rafiq Ahmed", description: "Kala Bhuna + rice, delivered outside app", amount: 620, mode: "online", paymentMethod: "bkash", daysAgo: 2 },
+  { customerName: "Walk-in Guest", description: "Ilish Paturi set", amount: 950, mode: "table", paymentMethod: "cod", daysAgo: 4 },
+  { customerName: "Nasrin Sultana", description: "Office lunch order — 6 boxes", amount: 2140, mode: "online", paymentMethod: "cod", daysAgo: 6 },
+  { customerName: "Walk-in Guest", description: "Shutki Bhorta + Mezbani Dal combo", amount: 340, mode: "table", paymentMethod: "cod", daysAgo: 7 },
+  { customerName: "Tanvir Hossain", description: "Family parcel, phone order", amount: 1560, mode: "online", paymentMethod: "bkash", daysAgo: 10 },
+  { customerName: "Walk-in Guest", description: "Borhani + Mishti Doi round", amount: 210, mode: "table", paymentMethod: "cod", daysAgo: 12 },
+  { customerName: "Farzana Islam", description: "Catering — small event", amount: 4800, mode: "online", paymentMethod: "cod", daysAgo: 15 },
+  { customerName: "Walk-in Guest", description: "Kala Bhuna full plate", amount: 380, mode: "table", paymentMethod: "cod", daysAgo: 18 },
+  { customerName: "Shamim Reza", description: "Delivery outside coverage area, arranged by phone", amount: 890, mode: "online", paymentMethod: "bkash", daysAgo: 21 },
+  { customerName: "Walk-in Guest", description: "Aloo Bhorta + Mezbani Dal, takeaway", amount: 200, mode: "table", paymentMethod: "cod", daysAgo: 23 },
+  { customerName: "Mehedi Hasan", description: "Weekend family feast, phone order", amount: 2350, mode: "online", paymentMethod: "cod", daysAgo: 27 },
+];
+
+async function seedFinance(ownerId: mongoose.Types.ObjectId): Promise<void> {
+  const expenseCount = await Expense.countDocuments();
+  if (expenseCount === 0) {
+    const now = Date.now();
+    await Expense.insertMany(
+      EXPENSE_SEED.map((e) => ({
+        category: e.category,
+        description: e.description,
+        amount: e.amount,
+        vendor: e.vendor,
+        date: new Date(now - e.daysAgo * 24 * 60 * 60 * 1000),
+        createdBy: ownerId,
+      }))
+    );
+    console.log(`[seed] Inserted ${EXPENSE_SEED.length} expenses.`);
+  } else {
+    console.log("[seed] Expenses already exist, skipping.");
+  }
+
+  const manualOrderCount = await Order.countDocuments({ source: "manual" });
+  if (manualOrderCount === 0) {
+    for (const m of MANUAL_ORDER_SEED) {
+      let orderNumber = generateOrderNumber(m.mode);
+      for (let attempt = 0; attempt < 5; attempt++) {
+        // eslint-disable-next-line no-await-in-loop
+        const exists = await Order.exists({ orderNumber });
+        if (!exists) break;
+        orderNumber = generateOrderNumber(m.mode);
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      const order = await Order.create({
+        orderNumber,
+        mode: m.mode,
+        type: m.mode === "online" ? "delivery" : "table-food",
+        status: "delivered",
+        customerName: m.customerName,
+        items: [{ name: m.description, price: m.amount, quantity: 1, image: "" }],
+        subtotal: m.amount,
+        discountAmount: 0,
+        total: m.amount,
+        payment: { method: m.paymentMethod, status: "paid", amount: m.amount, currency: "BDT" },
+        source: "manual",
+        createdBy: ownerId,
+      });
+
+      // Bypass the timestamps plugin (same technique as the live manual-order
+      // endpoint) so seeded sales land on the day they're meant to represent,
+      // not the day the seed script happened to run.
+      const createdAt = new Date(Date.now() - m.daysAgo * 24 * 60 * 60 * 1000);
+      // eslint-disable-next-line no-await-in-loop
+      await Order.collection.updateOne({ _id: order._id }, { $set: { createdAt } });
+    }
+    console.log(`[seed] Inserted ${MANUAL_ORDER_SEED.length} manual orders.`);
+  } else {
+    console.log("[seed] Manual orders already exist, skipping.");
+  }
+}
+
 async function ensureCategories(names: string[], kind: "menu" | "appetizer"): Promise<Map<string, string>> {
   const slugToName = new Map<string, string>();
   for (const [index, name] of names.entries()) {
@@ -150,6 +258,15 @@ async function seed() {
     }
   } else {
     console.log("[seed] DEFAULT_OWNER_EMAIL/PASSWORD not set, skipping owner seed.");
+  }
+
+  // Whichever branch above ran, grab an owner id to attribute the finance seed data
+  // to — works whether the account was just created or already existed.
+  const ownerUser = await User.findOne({ role: "owner" }).sort({ createdAt: 1 });
+  if (ownerUser) {
+    await seedFinance(ownerUser._id as mongoose.Types.ObjectId);
+  } else {
+    console.log("[seed] No owner account found, skipping finance seed data.");
   }
 
   await ensureCategories(MENU_CATEGORY_NAMES, "menu");

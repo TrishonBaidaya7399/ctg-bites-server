@@ -13,6 +13,7 @@ import uploadsRoutes from "./uploads.routes";
 import rolesRoutes from "./roles.routes";
 import reviewsRoutes from "./reviews.routes";
 import newsletterRoutes from "./newsletter.routes";
+import financeRoutes from "./finance.routes";
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use("/uploads", uploadsRoutes);
 router.use("/roles", rolesRoutes);
 router.use("/reviews", reviewsRoutes);
 router.use("/newsletter", newsletterRoutes);
+router.use("/finance", financeRoutes);
 
 export default router;

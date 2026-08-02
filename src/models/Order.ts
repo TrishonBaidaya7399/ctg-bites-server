@@ -5,12 +5,16 @@ export const ORDER_TYPES = ["table-food", "parcel", "delivery"] as const;
 export const ORDER_STATUSES = ["pending", "accepted", "preparing", "ready", "delivered", "cancelled"] as const;
 export const PAYMENT_METHODS = ["cod", "bkash", "stripe"] as const;
 export const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded"] as const;
+// "manual" — logged directly on the Finance page for a sale that didn't go through
+// the site (phone order, walk-in paid in person, etc.).
+export const ORDER_SOURCES = ["site", "manual"] as const;
 
 export type OrderMode = (typeof ORDER_MODES)[number];
 export type OrderType = (typeof ORDER_TYPES)[number];
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type OrderSource = (typeof ORDER_SOURCES)[number];
 
 // Statuses that still occupy a spot in the kitchen queue — once an order leaves this
 // set (ready/delivered/cancelled) it's done competing for prep time.
@@ -77,6 +81,8 @@ export interface IOrder extends Document {
   cancelReason?: string;
   payment: IOrderPayment;
   reviewedAt?: Date;
+  source: OrderSource;
+  createdBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -152,6 +158,8 @@ const OrderSchema = new Schema<IOrder>(
     cancelReason: { type: String },
     payment: { type: OrderPaymentSchema, required: true },
     reviewedAt: { type: Date },
+    source: { type: String, enum: ORDER_SOURCES, default: "site" },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );

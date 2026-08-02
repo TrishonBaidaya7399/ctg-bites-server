@@ -38,6 +38,22 @@ export function serializeOrder(order: IOrder, queue?: QueueInfo) {
     cancelledAt: order.cancelledAt?.toISOString(),
     cancelReason: order.cancelReason,
     reviewedAt: order.reviewedAt?.toISOString(),
+    source: order.source,
     createdAt: order.createdAt.toISOString(),
+  };
+}
+
+// Finance-only fields (payment/discount breakdown, who logged a manual entry) layered
+// on top of the shared shape — kept separate so the customer-facing endpoints
+// (track/lookup/mine) don't grow fields they have no use for.
+export function serializeFinanceOrder(order: IOrder, queue?: QueueInfo) {
+  return {
+    ...serializeOrder(order, queue),
+    subtotal: order.subtotal,
+    discountAmount: order.discountAmount,
+    couponCode: order.couponCode,
+    paymentMethod: order.payment.method,
+    paymentStatus: order.payment.status,
+    createdBy: order.createdBy ? String(order.createdBy) : undefined,
   };
 }
